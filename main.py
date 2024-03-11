@@ -8,248 +8,93 @@ import time
 import shutil
 import requests
 import subprocess
-        
-RELAY1_PIN = 17
-RELAY2_PIN = 27
-RELAY3_PIN = 22
-RELAY4_PIN = 18
-RELAY5_PIN = 25
-RELAY6_PIN = 8
-RELAY7_PIN = 12
-RELAY8_PIN = 13
-DIP1_PIN_2 = 19
-DIP2_PIN_1 = 16
-DIP3_PIN_4 = 26
-DIP4_PIN_3 = 20
-COMM_EN_PIN = 23
+import serial_asyncio
+import telegram
 
-global Channel, CO2, TVOC, PM25, TEMP, HUMID, LIGHT, WATER1, WATER2, WATER3, RELAYS_PARAM, SERVER_STATUS, SENSOR_STATUS, SERIAL_WATCHDOG, Manual_Relay_Info, Relay_Pins, isReadyToSend, ERRORCOUNT, TGBOT, msgToSend, RECIEVE_WATCHDOG, comm
-Channel = CO2 = TVOC = PM25 = TEMP = HUMID = LIGHT = WATER1 = WATER2 = WATER3 = ERRORCOUNT = TGBOT = RECIEVE_WATCHDOG = 0
+
+global RELAYS_PARAM, SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, Manual_Relay_Info, isReadyToSend, ERRORCOUNT, RECIEVE_WATCHDOG, comm, TGBOT
+
 SERVER_STATUS = True
-SENSOR_STATUS = False
+RELAY_STATUS = True
 isReadyToSend = False
 SERIAL_WATCHDOG = 0
 Manual_Relay_Info = [[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[False, 0]]
-Relay_Pins = []
-msgToSend = ''
 comm = 'S00000000\n'
 
 VERSION = '4.0U'
 
-IS_PI = True
 
-if IS_PI:
-    import RPi.GPIO as GPIO
+# telegram bot setup
+while True:
+    try:
+        TGBOT = telegram.Bot(token='6725689755:AAFecGY3ty3wheg44lR8d-6hO7LIuhAfiao')
+        chat_id = 5391813621
+        break
+    except Exception as e:
+        print('telegram setup failed..')
+        time.sleep(5)
 
-    while True:
-        try:
-            import serial_asyncio
-            print('serial_asyncio import succeed!')
-            break
-        except Exception as e:
-            print('This system has no serial_asyncio module..')
-            print('Installing serial_asyncio module..')
-            os.system('pip3 install pyserial-asyncio')
-            time.sleep(5)
-            
-    while True:
-        try:
-            import pyautogui
-            print('pyautogui import succeed!')
-            break
-        except Exception as e:
-            print('This system has no pyautogui module..')
-            print('Installing pyautogui module..')
-            os.system('pip3 install pyautogui')
-            time.sleep(5)
-            
-    while True:
-        try:
-            import telegram
-            print('telegram import succeed!')
-            TGBOT = telegram.Bot(token='6725689755:AAFecGY3ty3wheg44lR8d-6hO7LIuhAfiao')
-            chat_id = 5391813621
-            break
-        except Exception as e:
-            print('This system has no telegram module..')
-            print('Installing telegram module..')
-            os.system('pip3 install python-telegram-bot')
-            time.sleep(5)
 
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
-    GPIO.setup(RELAY1_PIN, GPIO.OUT)
-    GPIO.setup(RELAY2_PIN, GPIO.OUT)
-    GPIO.setup(RELAY3_PIN, GPIO.OUT)
-    GPIO.setup(RELAY4_PIN, GPIO.OUT)
-    GPIO.setup(RELAY5_PIN, GPIO.OUT)
-    GPIO.setup(RELAY6_PIN, GPIO.OUT)
-    GPIO.setup(RELAY7_PIN, GPIO.OUT)
-    GPIO.setup(RELAY8_PIN, GPIO.OUT)
-    GPIO.setup(COMM_EN_PIN, GPIO.OUT)
-    GPIO.setup(DIP1_PIN_2, GPIO.IN)
-    GPIO.setup(DIP2_PIN_1, GPIO.IN)
-    GPIO.setup(DIP3_PIN_4, GPIO.IN)
-    GPIO.setup(DIP4_PIN_3, GPIO.IN)
-    
-    GPIO.output(COMM_EN_PIN, True)
-
-    Relay_Pins = [RELAY1_PIN, RELAY2_PIN, RELAY3_PIN, RELAY4_PIN, RELAY5_PIN, RELAY6_PIN, RELAY7_PIN, RELAY8_PIN]
-
-    f = open('/home/pi/Desktop/settings.txt', 'r')
-    setting_id = ''
-    for line in f:
-        d = line.split(':')
+# load device id
+f = open('/boot/uEnv.txt', 'r')
+setting_id = ''
+for line in f:
+    if 'device_id' in line:
+        d = line.split('=')
         if d[0] == 'DEVICE_ID':
             setting_id = d[1]
             setting_id = setting_id.replace(' ', '')
             setting_id = setting_id.replace('\n', '')
-    f.close()
+f.close()
 
-    uri = 'wss://admin.azmo.kr/azmo_ws?%s' % (setting_id)
+# set websocket uri
+uri = 'wss://admin.azmo.kr/azmo_ws?%s' % (setting_id)
 
-    f = open('/etc/xdg/lxsession/LXDE-pi/autostart','r')
-    data = ''
-    isChanged = False
-    for line in f:
-        if 'atmo' in line:
-            line = line.replace('atmo', 'azmo')
-            isChanged = True
-        if 'v3' in line:
-            line = line.replace('v3', 'v1')
-            isChanged = True
 
-        if 'azmo' in line:
-            id = line.split('/')[1].replace('\n','')
-            if setting_id != id:
-                isChanged = True
-            
-            data += line.split('/')[0] + '/' + setting_id + '\n'
-        else:
-            data += line
-
-    f.close()
-
-    if isChanged:
-        f = open('/etc/xdg/lxsession/LXDE-pi/autostart','w')
-        f.write(data)
-        f.close()
-        os.system('shutdown -r now')
+# serial input asyncio class
+class InputChunkProtocol(asyncio.Protocol):
+    def __init__(self):
+        self.line = ''
+        
+    def connection_made(self, transport):
+        self.transport = transport
     
-    class InputChunkProtocol(asyncio.Protocol):
-        def __init__(self):
-            self.line = ''
-            
-        def connection_made(self, transport):
-            self.transport = transport
+    def data_received(self, data):
+        global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, comm
         
-        def data_received(self, data):
-            global Channel, CO2, TVOC, PM25, TEMP, HUMID, LIGHT, WATER1, WATER2, WATER3, SERVER_STATUS, SENSOR_STATUS, SERIAL_WATCHDOG, comm
-            
-            if len(data) > 0:
-                self.line += str(data, 'utf-8')
-            #print('\n[Sensor sData]', self.line)
+        if len(data) > 0:
+            self.line += str(data, 'utf-8')
+        print('[Relay sData]', self.line)
+        #self.line = ''
+        RELAY_STATUS = True
 
-            SERIAL_WATCHDOG = time.time()
-            SENSOR_STATUS = False
+        SERIAL_WATCHDOG = time.time()
             
-                            
-#             if ('{' in self.line and '}' in self.line) and (self.line.find('{') < self.line.find('}')):
-#                 line = self.line[self.line.find('{'):self.line.find('}')+1]
-#                 self.line = ''
-#                 print('[Sensor Data]', line)
-#                 try:
-#                     if len(line) > 0:
-#                         d = json.loads(line)
-#                         Channel = d['CH']
-#                         
-#                         if int(Channel) == readDipSW():
-#                             CO2 = int(d['CO2'])
-#                             TVOC = int(d['TVOC'])
-#                             PM25 = int(d['PM25'])
-#                             TEMP = float(d['TEMP'])
-#                             HUMID = float(d['HUMID'])
-#                             LIGHT = int(d['LIGHT'])
-#                         
-#                 except Exception as e:
-#                     # SERVER_STATUS = False
-#                     print('Serial Error:', e)
-#             elif ('{' in self.line and '}' in self.line) and (self.line.find('{') > self.line.find('}')):
-#                 self.line = self.line[self.line.find('{'):]
-                
-            self.transport.write(bytes(comm, 'utf-8'))
-            self.pause_reading()
-            
-        def pause_reading(self):
-            self.transport.pause_reading()
-            
-        def resume_reading(self):
-            self.transport.resume_reading()
-
-    async def reader():
-        global SERVER_STATUS
-        transport, protocol = await serial_asyncio.create_serial_connection(loop, InputChunkProtocol, '/dev/serial0', baudrate=9600)
+        self.transport.write(bytes(comm, 'utf-8'))
+        self.pause_reading()
         
-        while True:
-            if not SERVER_STATUS: break
-            await asyncio.sleep(1)
-            try:
-                protocol.resume_reading()
-                
-            except Exception as e:
-                # SERVER_STATUS = False
-                print('Serial Reader Error:', e)
-                
-        # raise RuntimeError('Serial Read Error')    
-
-else:
-    class GPIO():
-        def output(pin, value):
-            if pin == 17:
-                print('RELAY1 set', value)
-            elif pin == 27:
-                print('RELAY2 set', value)
-            elif pin == 22:
-                print('RELAY3 set', value)
-            elif pin == 18:
-                print('RELAY4 set', value)
-            elif pin == 25:
-                print('RELAY5 set', value)
-            elif pin == 8:
-                print('RELAY6 set', value)
-            elif pin == 12:
-                print('RELAY7 set', value)
-            elif pin == 13:
-                print('RELAY8 set', value)
-            else:
-                print('Wrong pin number')
+    def pause_reading(self):
+        self.transport.pause_reading()
         
-        def input(pin):
-            return 1
+    def resume_reading(self):
+        self.transport.resume_reading()
+
+async def reader():
+    global SERVER_STATUS
+    transport, protocol = await serial_asyncio.create_serial_connection(loop, InputChunkProtocol, '/dev/ttyS1', baudrate=9600)
     
-    setting_id = '8d3cd'
-    uri = 'ws://127.0.0.1/atmo_ws?%s' % (setting_id)
+    while True:
+        if not SERVER_STATUS: break
+        await asyncio.sleep(1)
+        try:
+            protocol.resume_reading()
+            
+        except Exception as e:
+            # SERVER_STATUS = False
+            print('Serial Reader Error:', e)
+            
+    # raise RuntimeError('Serial Read Error')    
 
-    async def reader():
-        global Channel, CO2, TVOC, PM25, TEMP, HUMID, LIGHT, WATER1, WATER2, WATER3, SERVER_STATUS, SENSOR_STATUS
-        
-        while True:
-            if not SERVER_STATUS: break
-            await asyncio.sleep(1)
-            try:
-                CO2 = random.randint(20,25)
-                TVOC = random.randint(100,110)
-                PM25 = random.randint(10,20)
-                TEMP = 26.6
-                HUMID = 54.2
-                LIGHT = random.randint(550,560)
-                SENSOR_STATUS = True
-
-            except Exception as e:
-                # SERVER_STATUS = False
-                print('Serial Reader Error:', e)
-                
-        # raise RuntimeError('Serial Read Error')
 
 
 
@@ -265,7 +110,7 @@ def saveParams(RELAYS_PARAM):
                     json.loads(RELAYS_PARAM[7])
                     ]
         }
-    with open('./saved3.json', 'w', encoding='utf-8') as make_file:
+    with open('./RelayInfo.json', 'w', encoding='utf-8') as make_file:
         json.dump(params, make_file, indent='\t')
         
 
@@ -273,8 +118,8 @@ def readParams():
     global RELAYS_PARAM
     RELAYS_PARAM = []
     relay_list = [1,2,3,4,5,6,7,8]
-    if os.path.exists('./saved3.json'):
-        with open('./saved3.json', 'r', encoding='utf-8') as read_file:
+    if os.path.exists('./RelayInfo.json'):
+        with open('./RelayInfo.json', 'r', encoding='utf-8') as read_file:
             d = json.load(read_file)
             for relay in d['CONTROL']:
                 j = json.dumps(relay)
@@ -341,10 +186,10 @@ def readParams():
 	]
 }
 '''
-        with open('./saved3.json', 'w', encoding='utf-8') as save_file:
+        with open('./RelayInfo.json', 'w', encoding='utf-8') as save_file:
             save_file.write(pData)
         
-        with open('./saved3.json', 'r', encoding='utf-8') as read_file:
+        with open('./RelayInfo.json', 'r', encoding='utf-8') as read_file:
             d = json.load(read_file)
             for relay in d['CONTROL']:
                 RELAYS_PARAM.append(json.dumps(relay))
@@ -393,21 +238,9 @@ def runWeeklyRepeatMode(REPEATINFO):
         print('WEEK INFO ERROR:', e)
         return False
 
-def readDipSW():
-    num = 0
-    if GPIO.input(DIP2_PIN_1) == 0:
-        num += 8
-    if GPIO.input(DIP1_PIN_2) == 0:
-        num += 4
-    if GPIO.input(DIP4_PIN_3) == 0:
-        num += 2
-    if GPIO.input(DIP3_PIN_4) == 0:
-        num += 1
-    
-    return num
 
 def updateRelay():
-    global RELAYS_PARAM, Manual_Relay_Info, Relay_Pins, comm
+    global RELAYS_PARAM, Manual_Relay_Info, comm
     
     try:
         print('\n--------------- checking relay params ---------------')
@@ -442,12 +275,10 @@ def updateRelay():
 
 
             if result:
-                #GPIO.output(Relay_Pins[idx], True)
                 comm = list(comm)
                 comm[idx+1] = '1'
                 comm = ''.join(comm)
             else:
-                #GPIO.output(Relay_Pins[idx], False)
                 comm = list(comm)
                 comm[idx+1] = '0'
                 comm = ''.join(comm)
@@ -465,13 +296,12 @@ async def TGMSG(message):
         print('TGMSG ERROR', e)
     
 async def send_sensor_data(ws):
-    global Channel, CO2, TVOC, PM25, TEMP, HUMID, LIGHT, WATER1, WATER2, WATER3, SERVER_STATUS, SENSOR_STATUS, SERIAL_WATCHDOG, msgToSend, isReadyToSend, RECIEVE_WATCHDOG
+    global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, msgToSend, isReadyToSend, RECIEVE_WATCHDOG
 
     DB_time_check = 0
     WEB_time_check = 0
     relay_time_check = 0
     ping_pong_time_check = 0
-    connection_check = 0
     RECIEVE_WATCHDOG = time.time()
     
     while True:
@@ -491,20 +321,14 @@ async def send_sensor_data(ws):
 
 
             if time.time() - SERIAL_WATCHDOG > 10.0:
-                SENSOR_STATUS = False
+                RELAY_STATUS = False
             
-            if int(time.time()) - connection_check >= 60 * 5:   # connection check every 5 mins
-                pyautogui.press('f5')
-                connection_check = int(time.time())
-                URL = 'https://v1.azmo.kr/api/fr/frMachineConnect.json?MACHINE_ID=%s' % (setting_id)
-                res = requests.get(URL)
-                #print('connection check status code:', res.status_code)
 
-            if SENSOR_STATUS:
+            if RELAY_STATUS:
                 if int(time.time()) - DB_time_check >= 60 * 30:   # DB update per every 30 mins
                     DB_time_check = int(time.time())
-                    URL = 'https://v1.azmo.kr/api/fr/frMachineApiSave.json?MACHINE_ID=%s&CO2=%d&TVOC=%d&PM25=%d&TEMP=%.1f&HUMID=%.1f&LIGHT=%d' % (setting_id, CO2, TVOC, PM25, TEMP, HUMID, LIGHT)
-                    res = requests.get(URL)
+                    # URL = 'https://v1.azmo.kr/api/fr/frMachineApiSave.json?MACHINE_ID=%s&CO2=%d&TVOC=%d&PM25=%d&TEMP=%.1f&HUMID=%.1f&LIGHT=%d' % (setting_id, CO2, TVOC, PM25, TEMP, HUMID, LIGHT)
+                    # res = requests.get(URL)
                     #print('data db push status code:', res.status_code)
 #                     params = {
 #                         "METHOD": "DBINIT",
@@ -519,24 +343,7 @@ async def send_sensor_data(ws):
 #                     print('[DB PUSH]', pData)
 #                     await ws.send(pData)
                     
-                if int(time.time()) - WEB_time_check >= 60:   # web update per every 60 sec
-                    WEB_time_check = int(time.time())
-                    params = {
-                        "METHOD": "SEND_F",
-                        "CO2": CO2,
-                        "TVOC": TVOC,
-                        "PM25": PM25,
-                        "TEMP": TEMP,
-                        "HUMID": HUMID,
-                        "LIGHT": LIGHT,
-                        "WATER1": 0,
-                        "WATER2": 0,
-                        "WATER3": 0
-                    }
 
-                    pData = json.dumps(params)
-                    print('[WEB PUSH]', pData)
-                    await ws.send(pData)
             else:
                 if int(time.time()) - WEB_time_check >= 5:   # DO NOT CHANGE THE VALUE
                     WEB_time_check = int(time.time())
@@ -564,7 +371,7 @@ async def send_sensor_data(ws):
             await TGMSG('Websocket Closed!')
 
 async def recv_handler(ws):
-    global RELAYS_PARAM, SERVER_STATUS, SENSOR_STATUS, ERRORCOUNT, msgToSend, isReadyToSend, RECIEVE_WATCHDOG
+    global RELAYS_PARAM, SERVER_STATUS, RELAY_STATUS, ERRORCOUNT, msgToSend, isReadyToSend, RECIEVE_WATCHDOG
     
     while True:
         if not SERVER_STATUS: break
@@ -631,7 +438,7 @@ async def recv_handler(ws):
                 params = {
                     "METHOD": "TOTAL_STATUS",
                     "DEVICE_ID": setting_id,
-                    "SENSOR_STATUS": SENSOR_STATUS,
+                    "SENSOR_STATUS": True,
                     "VERSION": VERSION
                 }
                 pData = json.dumps(params)
@@ -655,13 +462,13 @@ async def recv_handler(ws):
             
             elif d['METHOD'] == 'OTA':
                 await TGMSG('Updating..')
-                os.system('wget -P /home/pi/ https://raw.githubusercontent.com/picshbj/ATMOV3/main/main.py')
+                os.system('wget -P /home/pi/ https://raw.githubusercontent.com/picshbj/AZMO_U1/main/main.py')
                 
-                path_src = '/home/pi/main.py'
-                path_dest = '/home/pi/Documents/main.py'
+                # path_src = '/home/pi/main.py'
+                # path_dest = '/home/pi/Documents/main.py'
 
-                if os.path.isfile(path_src):
-                    shutil.move(path_src, path_dest)
+                # if os.path.isfile(path_src):
+                #     shutil.move(path_src, path_dest)
                 
                 await asyncio.sleep(10)
 
