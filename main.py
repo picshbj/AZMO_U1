@@ -20,6 +20,7 @@ isReadyToSend = False
 SERIAL_WATCHDOG = 0
 Manual_Relay_Info = [[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[False, 0]]
 comm = 'S00000000\n'
+setting_id = ''
 
 VERSION = '4.0U'
 
@@ -37,11 +38,10 @@ while True:
 
 # load device id
 f = open('/boot/uEnv.txt', 'r')
-setting_id = ''
 for line in f:
     if 'device_id' in line:
         d = line.split('=')
-        if d[0] == 'DEVICE_ID':
+        if d[0] == 'device_id':
             setting_id = d[1]
             setting_id = setting_id.replace(' ', '')
             setting_id = setting_id.replace('\n', '')
@@ -464,11 +464,11 @@ async def recv_handler(ws):
                 await TGMSG('Updating..')
                 os.system('wget -P /home/pi/ https://raw.githubusercontent.com/picshbj/AZMO_U1/main/main.py')
                 
-                # path_src = '/home/pi/main.py'
-                # path_dest = '/home/pi/Documents/main.py'
+                path_src = '/home/pi/main.py'
+                path_dest = '/home/pi/Documents/main.py'
 
-                # if os.path.isfile(path_src):
-                #     shutil.move(path_src, path_dest)
+                if os.path.isfile(path_src):
+                    shutil.move(path_src, path_dest)
                 
                 await asyncio.sleep(10)
 
