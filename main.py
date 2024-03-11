@@ -23,7 +23,7 @@ Manual_Relay_Info = [[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[Fal
 comm = 'S00000000\n'
 setting_id = ''
 
-VERSION = '4.0U'
+VERSION = '4.1U'
 
 
 # telegram bot setup
@@ -66,7 +66,7 @@ class InputChunkProtocol(asyncio.Protocol):
         if len(data) > 0:
             self.line += str(data, 'utf-8')
         print('[Relay sData]', self.line)
-        #self.line = ''
+        self.line = ''
         RELAY_STATUS = True
 
         SERIAL_WATCHDOG = time.time()
