@@ -23,7 +23,7 @@ Manual_Relay_Info = [[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[Fal
 comm = 'S00000000\n'
 setting_id = ''
 
-VERSION = '4.1U'
+VERSION = '4.2U'
 
 
 # telegram bot setup
