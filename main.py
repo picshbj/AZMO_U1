@@ -53,7 +53,7 @@ uri = 'wss://admin.azmo.kr/azmo_ws?%s' % (setting_id)
 
 
 # serial input asyncio class
-class InputChunkProtocol(asyncio.Protocol):
+class InputChunkProtocol_Relay(asyncio.Protocol):
     def __init__(self):
         self.line = ''
         
@@ -80,9 +80,47 @@ class InputChunkProtocol(asyncio.Protocol):
     def resume_reading(self):
         self.transport.resume_reading()
 
-async def reader():
+async def reader_relay():
     global SERVER_STATUS
-    transport, protocol = await serial_asyncio.create_serial_connection(loop, InputChunkProtocol, '/dev/ttyS1', baudrate=9600)
+    transport, protocol = await serial_asyncio.create_serial_connection(loop, InputChunkProtocol_Relay, '/dev/ttyS1', baudrate=9600)
+    
+    while True:
+        if not SERVER_STATUS: break
+        await asyncio.sleep(1)
+        try:
+            protocol.resume_reading()
+            
+        except Exception as e:
+            # SERVER_STATUS = False
+            print('Serial Reader Error:', e)
+            
+    # raise RuntimeError('Serial Read Error')    
+
+
+# serial input asyncio class
+class InputChunkProtocol_SoilSensor(asyncio.Protocol):
+    def __init__(self):
+        self.line = ''
+        self.data = bytearray([0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xc4, 0x0b])
+        
+    def connection_made(self, transport):
+        self.transport = transport
+    
+    def data_received(self, data):
+        global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, comm
+        print('[Soil Sensor]', data)
+        self.pause_reading()
+        
+    def pause_reading(self):
+        self.transport.pause_reading()
+        
+    def resume_reading(self):
+        self.transport.write(self.data)
+        self.transport.resume_reading()
+
+async def reader_soilsensor():
+    global SERVER_STATUS
+    transport, protocol = await serial_asyncio.create_serial_connection(loop, InputChunkProtocol_SoilSensor, '/dev/ttyS2', baudrate=9600)
     
     while True:
         if not SERVER_STATUS: break
@@ -522,7 +560,8 @@ async def main():
                 await asyncio.gather(
                     send_sensor_data(ws),
                     recv_handler(ws),
-                    reader()
+                    reader_relay(),
+                    reader_soilsensor()
                 )
         except Exception as e:
             await TGMSG('Main Error: %s' % (e))
