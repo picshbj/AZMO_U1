@@ -12,8 +12,8 @@ import serial_asyncio
 import telegram
 
 
-global RELAYS_PARAM, SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, Manual_Relay_Info, isReadyToSend, ERRORCOUNT, RECIEVE_WATCHDOG, comm, TGBOT
-ERRORCOUNT = TGBOT = RECIEVE_WATCHDOG = 0
+global RELAYS_PARAM, SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, Manual_Relay_Info, isReadyToSend, ERRORCOUNT, RECIEVE_WATCHDOG, comm, TGBOT, SOIL_HUMID, SOIL_TEMP
+ERRORCOUNT = TGBOT = RECIEVE_WATCHDOG = SOIL_HUMID = SOIL_TEMP = 0
 
 SERVER_STATUS = True
 RELAY_STATUS = True
@@ -107,8 +107,12 @@ class InputChunkProtocol_SoilSensor(asyncio.Protocol):
         self.transport = transport
     
     def data_received(self, data):
-        global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, comm
-        print('[Soil Sensor]', data)
+        global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, comm, SOIL_HUMID, SOIL_TEMP
+        if len(data) == 9:
+            SOIL_HUMID = (int(data[3])*256 + int(data[4])) / 10
+            SOIL_TEMP = (int(data[5])*256 + int(data[6])) / 10
+
+            print('temp: %.1fC, humid: %.1%%' % (SOIL_TEMP, SOIL_HUMID))
         self.pause_reading()
         
     def pause_reading(self):
