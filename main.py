@@ -112,7 +112,7 @@ class InputChunkProtocol_SoilSensor(asyncio.Protocol):
             SOIL_HUMID = (int(data[3])*256 + int(data[4])) / 10
             SOIL_TEMP = (int(data[5])*256 + int(data[6])) / 10
 
-            print('temp: %.1fC, humid: %.1%%' % (SOIL_TEMP, SOIL_HUMID))
+            print('temp: %.1fC, humid: %.1f%%' % (SOIL_TEMP, SOIL_HUMID))
         self.pause_reading()
         
     def pause_reading(self):
