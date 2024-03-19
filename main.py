@@ -551,7 +551,7 @@ async def main():
         updateRelay()
         
         SERVER_STATUS = True
-        if ERRORCOUNT > 25:
+        if ERRORCOUNT > 50:
             await TGMSG('Error occurred. Reboot: %d' % ERRORCOUNT)
             subprocess.call(['reboot'])
         else:
