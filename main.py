@@ -376,7 +376,7 @@ async def send_sensor_data(ws):
                     # print('data db push status code:', res.status_code)
                 
                 if int(time.time()) - WEB_time_check >= 60:   # DB update per every 60 sec
-                    Web_time_check = int(time.time())
+                    WEB_time_check = int(time.time())
                     params = {
                         "METHOD": "SEND_F",
                         "CO2": CO2,
