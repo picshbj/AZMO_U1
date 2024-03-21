@@ -12,8 +12,9 @@ import serial_asyncio
 import telegram
 
 
-global RELAYS_PARAM, SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, Manual_Relay_Info, isReadyToSend, ERRORCOUNT, RECIEVE_WATCHDOG, comm, TGBOT, SOIL_HUMID, SOIL_TEMP
-ERRORCOUNT = TGBOT = RECIEVE_WATCHDOG = SOIL_HUMID = SOIL_TEMP = 0
+global RELAYS_PARAM, SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, Manual_Relay_Info, isReadyToSend, ERRORCOUNT, RECIEVE_WATCHDOG, comm, TGBOT, CO2, TVOC, PM25, TEMP, HUMID, LIGHT, SOIL_HUMIDITY, SOIL_TEMP
+ERRORCOUNT = TGBOT = RECIEVE_WATCHDOG = 0
+CO2 = TVOC = PM25 = TEMP = HUMID = LIGHT = SOIL_HUMIDITY = SOIL_TEMP = 0
 
 SERVER_STATUS = True
 RELAY_STATUS = True
@@ -107,12 +108,12 @@ class InputChunkProtocol_SoilSensor(asyncio.Protocol):
         self.transport = transport
     
     def data_received(self, data):
-        global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, comm, SOIL_HUMID, SOIL_TEMP
+        global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, comm, SOIL_HUMIDITY, SOIL_TEMP
         if len(data) == 9:
-            SOIL_HUMID = (int(data[3])*256 + int(data[4])) / 10
+            SOIL_HUMIDITY = (int(data[3])*256 + int(data[4])) / 10
             SOIL_TEMP = (int(data[5])*256 + int(data[6])) / 10
 
-            print('temp: %.1fC, humid: %.1f%%' % (SOIL_TEMP, SOIL_HUMID))
+            print('temp: %.1fC, humid: %.1f%%' % (SOIL_TEMP, SOIL_HUMIDITY))
         self.pause_reading()
         
     def pause_reading(self):
@@ -339,7 +340,7 @@ async def TGMSG(message):
         print('TGMSG ERROR', e)
     
 async def send_sensor_data(ws):
-    global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, msgToSend, isReadyToSend, RECIEVE_WATCHDOG
+    global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, msgToSend, isReadyToSend, RECIEVE_WATCHDOG, SOIL_HUMIDITY, SOIL_TEMP
 
     DB_time_check = 0
     WEB_time_check = 0
@@ -370,23 +371,26 @@ async def send_sensor_data(ws):
             if RELAY_STATUS:
                 if int(time.time()) - DB_time_check >= 60 * 30:   # DB update per every 30 mins
                     DB_time_check = int(time.time())
-                    # URL = 'https://v1.azmo.kr/api/fr/frMachineApiSave.json?MACHINE_ID=%s&CO2=%d&TVOC=%d&PM25=%d&TEMP=%.1f&HUMID=%.1f&LIGHT=%d' % (setting_id, CO2, TVOC, PM25, TEMP, HUMID, LIGHT)
-                    # res = requests.get(URL)
-                    #print('data db push status code:', res.status_code)
-#                     params = {
-#                         "METHOD": "DBINIT",
-#                         "CO2": CO2,
-#                         "TVOC": TVOC,
-#                         "PM25": PM25,
-#                         "TEMP": TEMP,
-#                         "HUMID": HUMID,
-#                         "LIGHT": LIGHT
-#                     }
-#                     pData = json.dumps(params)
-#                     print('[DB PUSH]', pData)
-#                     await ws.send(pData)
-                    
-
+                    URL = 'https://v1.azmo.kr/api/fr/frMachineApiSave.json?MACHINE_ID=%s&CO2=%d&TVOC=%d&PM25=%d&TEMP=%.1f&HUMID=%.1f&LIGHT=%d&SOIL_HUMIDITY=%.1f&SOIL_TEMP=%.1f' % (setting_id, CO2, TVOC, PM25, TEMP, HUMID, LIGHT, SOIL_HUMIDITY, SOIL_TEMP)
+                    res = requests.get(URL)
+                    # print('data db push status code:', res.status_code)
+                
+                if int(time.time()) - WEB_time_check >= 60:   # DB update per every 60 sec
+                    Web_time_check = int(time.time())
+                    params = {
+                        "METHOD": "SEND_F",
+                        "CO2": CO2,
+                        "TVOC": TVOC,
+                        "PM25": PM25,
+                        "TEMP": TEMP,
+                        "HUMID": HUMID,
+                        "LIGHT": LIGHT,
+                        "SOIL_HUMIDITY": SOIL_HUMIDITY,
+                        "SOIL_TEMP": SOIL_TEMP
+                    }
+                    pData = json.dumps(params)
+                    print('[WEB PUSH]', pData)
+                    await ws.send(pData)
             else:
                 if int(time.time()) - WEB_time_check >= 5:   # DO NOT CHANGE THE VALUE
                     WEB_time_check = int(time.time())
