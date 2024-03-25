@@ -24,7 +24,7 @@ Manual_Relay_Info = [[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[Fal
 comm = 'S00000000\n'
 setting_id = ''
 
-VERSION = '4.0U'
+VERSION = '4.1U'
 
 
 # telegram bot setup
@@ -133,7 +133,7 @@ class InputChunkProtocol_SoilSensor(asyncio.Protocol):
             SOIL_HUMIDITY = (int(data[3])*256 + int(data[4])) / 10
             SOIL_TEMP = (int(data[5])*256 + int(data[6])) / 10
 
-            print('temp: %.1fC, humid: %.1f%%' % (SOIL_TEMP, SOIL_HUMIDITY))
+            #print('temp: %.1fC, humid: %.1f%%' % (SOIL_TEMP, SOIL_HUMIDITY))
         self.pause_reading()
         
     def pause_reading(self):
@@ -280,7 +280,7 @@ def runPeriodictMode(WEEKINFO):
         return False
 
     except Exception as e:
-        print('WEEK INFO ERROR:', e)
+        #print('WEEK INFO ERROR:', e)
         return False
 
 def runWeeklyRepeatMode(REPEATINFO):
@@ -299,7 +299,7 @@ def runWeeklyRepeatMode(REPEATINFO):
         return False
                 
     except Exception as e:
-        print('WEEK INFO ERROR:', e)
+        #print('WEEK INFO ERROR:', e)
         return False
 
 
@@ -307,12 +307,12 @@ def updateRelay():
     global RELAYS_PARAM, Manual_Relay_Info, comm
     
     try:
-        print('\n--------------- checking relay params ---------------')
+        #print('\n--------------- checking relay params ---------------')
         for idx, relay in enumerate(RELAYS_PARAM):
             result = False
             
             relay = json.loads(relay)
-            print(relay)
+            #print(relay)
             
             if relay['MODE'] == 'onoff':   # manual mode
                 result = runManualMode(relay['ONOFFINFO'])
@@ -347,13 +347,13 @@ def updateRelay():
                 comm[idx+1] = '0'
                 comm = ''.join(comm)
 
-        print('-----------------------------------------------------\n')
+        #print('-----------------------------------------------------\n')
     except Exception as e:
         print('Update Realy Error:', e)
 
 async def TGMSG(message):
     try:
-        print(message)
+        #print(message)
         msg = '[%s][%s]\n%s' % (setting_id, datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S'), message)
         await TGBOT.sendMessage(chat_id=chat_id, text=msg)
     except Exception as e:
@@ -378,7 +378,7 @@ async def send_sensor_data(ws):
         
         try:
             if isReadyToSend:
-                print('[Send Message to server]', msgToSend)
+                #print('[Send Message to server]', msgToSend)
                 await ws.send(msgToSend)
                 isReadyToSend = False
                 msgToSend = ''
@@ -410,12 +410,12 @@ async def send_sensor_data(ws):
                         "SOIL_TEMP": SOIL_TEMP
                     }
                     pData = json.dumps(params)
-                    print('[WEB PUSH]', pData)
+                    #print('[WEB PUSH]', pData)
                     await ws.send(pData)
             else:
                 if int(time.time()) - WEB_time_check >= 5:   # DO NOT CHANGE THE VALUE
                     WEB_time_check = int(time.time())
-                    print('Sensor Status False')
+                    #print('Sensor Status False')
                 
             
             if int(time.time()) - relay_time_check >= 5: # check relay every 5 sec
@@ -429,7 +429,7 @@ async def send_sensor_data(ws):
                 }
 
                 pData = json.dumps(params)
-                print('[SEND PING]', pData)
+                #print('[SEND PING]', pData)
                 await ws.send(pData)
                 
         except Exception as e:
@@ -449,11 +449,11 @@ async def recv_handler(ws):
                 data = await ws.recv()
                 subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio200/value', shell=True) # Network LED
             except Exception as e:
-                print('Websocket recv() Error:', e)
+                #print('Websocket recv() Error:', e)
                 continue
 
             d = json.loads(data)
-            print('recieved:', d)
+            #rint('recieved:', d)
             
             if 'TIMESTAMP' in d:
                 # time_cmd = "sudo date -s '%s'" % d['TIMESTAMP']
@@ -591,8 +591,6 @@ async def main():
             subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio200/value', shell=True) # Network LED
             subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio201/value', shell=True) # Relay LED
             subprocess.call(['reboot'])
-        else:
-            print('ERROR COUNT: %d' % (ERRORCOUNT))
         
 
         await TGMSG('Creating a new websockets..')
