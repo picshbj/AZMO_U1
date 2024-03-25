@@ -53,7 +53,7 @@ f.close()
 uri = 'wss://admin.azmo.kr/azmo_ws?%s' % (setting_id)
 
 
-# serial input asyncio class
+# Relay serial input asyncio class
 class InputChunkProtocol_Relay(asyncio.Protocol):
     def __init__(self):
         self.line = ''
@@ -66,6 +66,7 @@ class InputChunkProtocol_Relay(asyncio.Protocol):
         
         if len(data) > 0:
             self.line += str(data, 'utf-8')
+            os.system('echo 1 | sudo tee /sys/class/gpio201/value') # Relay LED
         print('[Relay sData]', self.line)
         self.line = ''
         RELAY_STATUS = True
@@ -98,7 +99,7 @@ async def reader_relay():
     # raise RuntimeError('Serial Read Error')    
 
 
-# serial input asyncio class
+# Soil Sensor serial input asyncio class
 class InputChunkProtocol_SoilSensor(asyncio.Protocol):
     def __init__(self):
         self.line = ''
@@ -108,7 +109,7 @@ class InputChunkProtocol_SoilSensor(asyncio.Protocol):
         self.transport = transport
     
     def data_received(self, data):
-        global SERVER_STATUS, RELAY_STATUS, SERIAL_WATCHDOG, comm, SOIL_HUMIDITY, SOIL_TEMP
+        global SERVER_STATUS, RELAY_STATUS, comm, SOIL_HUMIDITY, SOIL_TEMP
         if len(data) == 9:
             SOIL_HUMIDITY = (int(data[3])*256 + int(data[4])) / 10
             SOIL_TEMP = (int(data[5])*256 + int(data[6])) / 10
@@ -366,6 +367,10 @@ async def send_sensor_data(ws):
 
             if time.time() - SERIAL_WATCHDOG > 10.0:
                 RELAY_STATUS = False
+                os.system('echo 0 | sudo tee /sys/class/gpio201/value') # Relay LED
+                os.system('echo 1 | sudo tee /sys/class/gpio2/value') # Reset
+                await asyncio.sleep(1)
+                os.system('echo 0 | sudo tee /sys/class/gpio2/value') # Reset
             
 
             if RELAY_STATUS:
@@ -426,6 +431,7 @@ async def recv_handler(ws):
             try:
                 await asyncio.sleep(0)
                 data = await ws.recv()
+                os.system('echo 1 | sudo tee /sys/class/gpio200/value') # Network LED
             except Exception as e:
                 print('Websocket recv() Error:', e)
                 continue
@@ -557,6 +563,9 @@ async def main():
         SERVER_STATUS = True
         if ERRORCOUNT > 50:
             await TGMSG('Error occurred. Reboot: %d' % ERRORCOUNT)
+            os.system('echo 0 | sudo tee /sys/class/gpio6/value') # Boot LED
+            os.system('echo 0 | sudo tee /sys/class/gpio200/value') # Network LED
+            os.system('echo 0 | sudo tee /sys/class/gpio201/value') # Relay LED
             subprocess.call(['reboot'])
         else:
             print('ERROR COUNT: %d' % (ERRORCOUNT))
@@ -572,10 +581,36 @@ async def main():
                     reader_soilsensor()
                 )
         except Exception as e:
+            os.system('echo 0 | sudo tee /sys/class/gpio200/value') # Network LED
             await TGMSG('Main Error: %s' % (e))
 
             await asyncio.sleep(1)
             ERRORCOUNT += 1
+
+
+try:
+    os.system('echo 6 | sudo tee /sys/class/gpio/export') # Boot LED
+    time.sleep(0.2)
+    os.system('echo 200 | sudo tee /sys/class/gpio/export') # Network LED
+    time.sleep(0.2)
+    os.system('echo 201 | sudo tee /sys/class/gpio/export') # Relay LED
+    time.sleep(0.2)
+    os.system('echo 2 | sudo tee /sys/class/gpio/export') # Reset
+    time.sleep(0.2)
+
+    os.system('echo out | sudo tee /sys/class/gpio6/direction') # Boot LED
+    time.sleep(0.2)
+    os.system('echo out | sudo tee /sys/class/gpio200/direction') # Network LED
+    time.sleep(0.2)
+    os.system('echo out | sudo tee /sys/class/gpio201/direction') # Relay LED
+    time.sleep(0.2)
+    os.system('echo out | sudo tee /sys/class/gpio2/direction') # Reset
+    time.sleep(0.2)
+
+    os.system('echo 1 | sudo tee /sys/class/gpio6/value') # Boot LED
+except Exception as e:
+    pass
+
 
 while True:
     try:
