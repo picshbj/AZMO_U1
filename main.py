@@ -81,11 +81,11 @@ class InputChunkProtocol_Relay(asyncio.Protocol):
         
         if self.errCount > 20:
             subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio201/value', shell=True) # Relay LED
-            subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
-            time.sleep(1)
             subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
             self.errCount = 0
-            
+
+        if self.errCount == 0:
+            subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
 
         self.line = ''
         RELAY_STATUS = True
@@ -387,9 +387,9 @@ async def send_sensor_data(ws):
             if time.time() - SERIAL_WATCHDOG > 10.0:
                 RELAY_STATUS = False
                 subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio201/value', shell=True) # Relay LED
-                subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
-                await asyncio.sleep(1)
                 subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
+                await asyncio.sleep(1)
+                subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
             
 
             if RELAY_STATUS:
@@ -627,6 +627,7 @@ try:
     subprocess.call('echo out | sudo tee /sys/class/gpio/gpio2/direction', shell=True) # Reset
 
     subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio6/value', shell=True) # Boot LED
+    subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
 except Exception as e:
     pass
 
