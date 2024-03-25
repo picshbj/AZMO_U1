@@ -57,6 +57,7 @@ uri = 'wss://admin.azmo.kr/azmo_ws?%s' % (setting_id)
 class InputChunkProtocol_Relay(asyncio.Protocol):
     def __init__(self):
         self.line = ''
+        self.errCount = 0
         
     def connection_made(self, transport):
         self.transport = transport
@@ -67,7 +68,25 @@ class InputChunkProtocol_Relay(asyncio.Protocol):
         if len(data) > 0:
             self.line += str(data, 'utf-8')
             subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio201/value', shell=True) # Relay LED
-        print('[Relay sData]', self.line)
+        #print('[Relay sData]', self.line)
+            
+        if len(self.line) < 9:
+            self.errCount += 1
+
+        elif self.line[0:9] == self.comm[0:9]:
+            self.errCount = 0
+        else:
+            self.errCount += 1
+            subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio201/value', shell=True) # Relay LED
+        
+        if self.errCount > 20:
+            subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio201/value', shell=True) # Relay LED
+            subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
+            time.sleep(1)
+            subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
+            self.errCount = 0
+            
+
         self.line = ''
         RELAY_STATUS = True
 
@@ -510,10 +529,10 @@ async def recv_handler(ws):
                 # await ws.send(pData)
                 msgToSend = pData
                 isReadyToSend = True
-                await asyncio.sleep(5)
                 subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio6/value', shell=True) # Boot LED
                 subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio200/value', shell=True) # Network LED
                 subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio201/value', shell=True) # Relay LED
+                await asyncio.sleep(5)
                 
                 subprocess.call(['reboot'])
             
