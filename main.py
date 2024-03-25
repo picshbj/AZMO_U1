@@ -535,7 +535,7 @@ async def recv_handler(ws):
             
             elif d['METHOD'] == 'OTA':
                 await TGMSG('Updating..')
-                subprocess.call('wget -P /home/pi/ https://raw.githubusercontent.com/picshbj/AZMO_U1/main/main.py')
+                subprocess.call('wget -P /home/pi/ https://raw.githubusercontent.com/picshbj/AZMO_U1/main/main.py', shell=True)
                 
                 path_src = '/home/pi/main.py'
                 path_dest = '/home/pi/Documents/main.py'
