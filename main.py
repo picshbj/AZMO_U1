@@ -73,7 +73,7 @@ class InputChunkProtocol_Relay(asyncio.Protocol):
         if len(self.line) < 9:
             self.errCount += 1
 
-        elif self.line[0:9] == self.comm[0:9]:
+        elif self.line[0:9] == comm[0:9]:
             self.errCount = 0
         else:
             self.errCount += 1
