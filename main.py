@@ -24,7 +24,7 @@ Manual_Relay_Info = [[False, 0],[False, 0],[False, 0],[False, 0],[False, 0],[Fal
 comm = 'S00000000\n'
 setting_id = ''
 
-VERSION = '4.2U'
+VERSION = '4.3U'
 
 
 # telegram bot setup
@@ -66,7 +66,7 @@ class InputChunkProtocol_Relay(asyncio.Protocol):
         
         if len(data) > 0:
             self.line += str(data, 'utf-8')
-            os.system('echo 1 | sudo tee /sys/class/gpio201/value') # Relay LED
+            os.system('echo 1 | sudo tee /sys/class/gpio/gpio201/value') # Relay LED
         print('[Relay sData]', self.line)
         self.line = ''
         RELAY_STATUS = True
@@ -367,10 +367,10 @@ async def send_sensor_data(ws):
 
             if time.time() - SERIAL_WATCHDOG > 10.0:
                 RELAY_STATUS = False
-                os.system('echo 0 | sudo tee /sys/class/gpio201/value') # Relay LED
-                os.system('echo 1 | sudo tee /sys/class/gpio2/value') # Reset
+                os.system('echo 0 | sudo tee /sys/class/gpio/gpio201/value') # Relay LED
+                os.system('echo 1 | sudo tee /sys/class/gpio/gpio2/value') # Reset
                 await asyncio.sleep(1)
-                os.system('echo 0 | sudo tee /sys/class/gpio2/value') # Reset
+                os.system('echo 0 | sudo tee /sys/class/gpio/gpio2/value') # Reset
             
 
             if RELAY_STATUS:
@@ -431,7 +431,7 @@ async def recv_handler(ws):
             try:
                 await asyncio.sleep(0)
                 data = await ws.recv()
-                os.system('echo 1 | sudo tee /sys/class/gpio200/value') # Network LED
+                os.system('echo 1 | sudo tee /sys/class/gpio/gpio200/value') # Network LED
             except Exception as e:
                 print('Websocket recv() Error:', e)
                 continue
@@ -563,9 +563,9 @@ async def main():
         SERVER_STATUS = True
         if ERRORCOUNT > 50:
             await TGMSG('Error occurred. Reboot: %d' % ERRORCOUNT)
-            os.system('echo 0 | sudo tee /sys/class/gpio6/value') # Boot LED
-            os.system('echo 0 | sudo tee /sys/class/gpio200/value') # Network LED
-            os.system('echo 0 | sudo tee /sys/class/gpio201/value') # Relay LED
+            os.system('echo 0 | sudo tee /sys/class/gpio/gpio6/value') # Boot LED
+            os.system('echo 0 | sudo tee /sys/class/gpio/gpio200/value') # Network LED
+            os.system('echo 0 | sudo tee /sys/class/gpio/gpio201/value') # Relay LED
             subprocess.call(['reboot'])
         else:
             print('ERROR COUNT: %d' % (ERRORCOUNT))
@@ -581,7 +581,7 @@ async def main():
                     reader_soilsensor()
                 )
         except Exception as e:
-            os.system('echo 0 | sudo tee /sys/class/gpio200/value') # Network LED
+            os.system('echo 0 | sudo tee /sys/class/gpio/gpio200/value') # Network LED
             await TGMSG('Main Error: %s' % (e))
 
             await asyncio.sleep(1)
@@ -598,16 +598,16 @@ try:
     os.system('echo 2 | sudo tee /sys/class/gpio/export') # Reset
     time.sleep(0.2)
 
-    os.system('echo out | sudo tee /sys/class/gpio6/direction') # Boot LED
+    os.system('echo out | sudo tee /sys/class/gpio/gpio6/direction') # Boot LED
     time.sleep(0.2)
-    os.system('echo out | sudo tee /sys/class/gpio200/direction') # Network LED
+    os.system('echo out | sudo tee /sys/class/gpio/gpio200/direction') # Network LED
     time.sleep(0.2)
-    os.system('echo out | sudo tee /sys/class/gpio201/direction') # Relay LED
+    os.system('echo out | sudo tee /sys/class/gpio/gpio201/direction') # Relay LED
     time.sleep(0.2)
-    os.system('echo out | sudo tee /sys/class/gpio2/direction') # Reset
+    os.system('echo out | sudo tee /sys/class/gpio/gpio2/direction') # Reset
     time.sleep(0.2)
 
-    os.system('echo 1 | sudo tee /sys/class/gpio6/value') # Boot LED
+    os.system('echo 1 | sudo tee /sys/class/gpio/gpio6/value') # Boot LED
 except Exception as e:
     pass
 
