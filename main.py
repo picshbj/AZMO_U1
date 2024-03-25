@@ -387,9 +387,6 @@ async def send_sensor_data(ws):
             if time.time() - SERIAL_WATCHDOG > 10.0:
                 RELAY_STATUS = False
                 subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio201/value', shell=True) # Relay LED
-                subprocess.call('echo 0 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
-                await asyncio.sleep(1)
-                subprocess.call('echo 1 | sudo tee /sys/class/gpio/gpio2/value', shell=True) # Reset
             
 
             if RELAY_STATUS:
