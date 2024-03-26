@@ -268,8 +268,8 @@ def runManualMode(ONOFFINFO):
 def runPeriodictMode(WEEKINFO):
     try:
         # "WEEKINFO": {"START_DT": "20220909", "REPEAT_DAY": "15", "START_TIME": "0030", "END_TIME": "0100"}}
-        scheduled_date = datetime.datetime.strptime(WEEKINFO['START_DT'], '%Y-%m-%d').replace(tzinfo=datetime.timezone(datetime.timedelta(hours=0)))
-        now = datetime.datetime.now(tz=datetime.timezone(datetime.timedelta(hours=0)))
+        scheduled_date = datetime.datetime.strptime(WEEKINFO['START_DT'], '%Y-%m-%d').replace(tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
+        now = datetime.datetime.now(tz=datetime.timezone(datetime.timedelta(hours=9)))
         diff = now - scheduled_date
         
         #print('WEEK', WEEKINFO)
@@ -287,7 +287,7 @@ def runWeeklyRepeatMode(REPEATINFO):
     try:
         # "REPEATINFO": [{"WEEK_INFO": "1", "START_TIME": "0100", "END_TIME": "0200"}, {"WEEK_INFO": "2", "START_TIME": "0100", "END_TIME": "0200"}]
         # Mon(1), Tue(2), Wed(3), Thu(4), Fri(5), Sat(6), Sun(7)
-        now = datetime.datetime.now(tz=datetime.timezone(datetime.timedelta(hours=0)))
+        now = datetime.datetime.now(tz=datetime.timezone(datetime.timedelta(hours=9)))
         
         for element in REPEATINFO:
             #print('REPEAT',element)
@@ -611,6 +611,7 @@ async def main():
 
 
 try:
+    subprocess.call("sudo timedatectl set-timezone 'Asia/Seoul'", shell=True)
     subprocess.call('echo 6 | sudo tee /sys/class/gpio/export', shell=True) # Boot LED
     subprocess.call('echo 200 | sudo tee /sys/class/gpio/export', shell=True) # Network LED
     subprocess.call('echo 201 | sudo tee /sys/class/gpio/export', shell=True) # Relay LED
